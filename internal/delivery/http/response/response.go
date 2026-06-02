@@ -1,135 +1,118 @@
 package response
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Response is the standard API response format
-type Response struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   *ErrorInfo  `json:"error,omitempty"`
-	Meta    *Meta       `json:"meta,omitempty"`
-}
-
-// ErrorInfo contains error details
-type ErrorInfo struct {
-	Code    string `json:"code,omitempty"`
-	Message string `json:"message"`
-}
-
-// Meta contains pagination metadata
 type Meta struct {
-	Page       int   `json:"page"`
-	Limit      int   `json:"limit"`
-	Total      int64 `json:"total"`
-	TotalPages int   `json:"total_pages"`
+	Page       int `json:"page"`
+	Limit      int `json:"limit"`
+	TotalData  int `json:"total_data"`
+	TotalPages int `json:"total_pages"`
 }
 
-// Success sends a success response with data
-func Success(c *gin.Context, data interface{}) {
-	c.JSON(http.StatusOK, Response{
-		Success: true,
-		Data:    data,
-	})
+type APIResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+	Meta    *Meta  `json:"meta,omitempty"`
 }
 
-// SuccessWithMessage sends a success response with message
-func SuccessWithMessage(c *gin.Context, message string, data interface{}) {
-	c.JSON(http.StatusOK, Response{
-		Success: true,
+func success(c *gin.Context, code int, message string, data any) {
+	c.JSON(code, APIResponse{
+		Status:  "success",
 		Message: message,
 		Data:    data,
 	})
 }
 
-// SuccessWithMeta sends a success response with pagination metadata
-func SuccessWithMeta(c *gin.Context, data interface{}, meta *Meta) {
-	c.JSON(http.StatusOK, Response{
-		Success: true,
-		Data:    data,
-		Meta:    meta,
+func fail(c *gin.Context, code int, message string) {
+	c.JSON(code, APIResponse{
+		Status:  "error",
+		Message: message,
 	})
 }
 
-// Created sends a 201 created response
-func Created(c *gin.Context, data interface{}) {
-	c.JSON(http.StatusCreated, Response{
-		Success: true,
-		Message: "Resource created successfully",
+// OK sends 200 with data (single resource or custom payload).
+func OK(c *gin.Context, message string, data any) {
+	success(c, http.StatusOK, message, data)
+}
+
+// OKList sends 200 with an array payload and pagination meta.
+func OKList(c *gin.Context, message string, data any, page, limit, total int) {
+	c.JSON(http.StatusOK, APIResponse{
+		Status:  "success",
+		Message: message,
 		Data:    data,
-	})
-}
-
-// NoContent sends a 204 no content response
-func NoContent(c *gin.Context) {
-	c.Status(http.StatusNoContent)
-}
-
-// Error sends an error response
-func Error(c *gin.Context, statusCode int, message string) {
-	c.JSON(statusCode, Response{
-		Success: false,
-		Error: &ErrorInfo{
-			Message: message,
+		Meta: &Meta{
+			Page:       page,
+			Limit:      limit,
+			TotalData:  total,
+			TotalPages: totalPages(total, limit),
 		},
 	})
 }
 
-// ErrorWithCode sends an error response with error code
-func ErrorWithCode(c *gin.Context, statusCode int, code, message string) {
-	c.JSON(statusCode, Response{
-		Success: false,
-		Error: &ErrorInfo{
-			Code:    code,
-			Message: message,
-		},
-	})
+// Created sends 201.
+func Created(c *gin.Context, message string, data any) {
+	success(c, http.StatusCreated, message, data)
 }
 
-// BadRequest sends a 400 bad request error
+// Updated sends 200 for mutation responses.
+func Updated(c *gin.Context, message string, data any) {
+	success(c, http.StatusOK, message, data)
+}
+
+// Deleted sends 200 for delete responses.
+func Deleted(c *gin.Context, message string, data any) {
+	success(c, http.StatusOK, message, data)
+}
+
+// BadRequest sends 400.
 func BadRequest(c *gin.Context, message string) {
-	Error(c, http.StatusBadRequest, message)
+	fail(c, http.StatusBadRequest, message)
 }
 
-// Unauthorized sends a 401 unauthorized error
-func Unauthorized(c *gin.Context, message string) {
-	if message == "" {
-		message = "Unauthorized"
-	}
-	Error(c, http.StatusUnauthorized, message)
+// Unauthorized sends 401.
+func Unauthorized(c *gin.Context) {
+	fail(c, http.StatusUnauthorized, "unauthorized")
 }
 
-// Forbidden sends a 403 forbidden error
+// Forbidden sends 403.
 func Forbidden(c *gin.Context, message string) {
-	if message == "" {
-		message = "Access forbidden"
+	fail(c, http.StatusForbidden, message)
+}
+
+// NotFound sends 404.
+func NotFound(c *gin.Context) {
+	fail(c, http.StatusNotFound, "not found")
+}
+
+// TooManyRequests sends 429.
+func TooManyRequests(c *gin.Context) {
+	fail(c, http.StatusTooManyRequests, "too many requests")
+}
+
+// Maintenance sends 503.
+func Maintenance(c *gin.Context) {
+	c.JSON(http.StatusServiceUnavailable, APIResponse{
+		Status:  "error",
+		Message: "service is under maintenance, please try again later",
+	})
+}
+
+// InternalError sends 500 and logs the underlying error.
+func InternalError(c *gin.Context, err error) {
+	log.Printf("[ERROR] %v", err)
+	fail(c, http.StatusInternalServerError, "internal server error")
+}
+
+func totalPages(total, limit int) int {
+	if limit <= 0 {
+		return 0
 	}
-	Error(c, http.StatusForbidden, message)
-}
-
-// NotFound sends a 404 not found error
-func NotFound(c *gin.Context, message string) {
-	if message == "" {
-		message = "Resource not found"
-	}
-	Error(c, http.StatusNotFound, message)
-}
-
-// Conflict sends a 409 conflict error
-func Conflict(c *gin.Context, message string) {
-	Error(c, http.StatusConflict, message)
-}
-
-// InternalError sends a 500 internal server error
-func InternalError(c *gin.Context) {
-	Error(c, http.StatusInternalServerError, "Internal server error")
-}
-
-// ValidationError sends a 422 unprocessable entity error
-func ValidationError(c *gin.Context, message string) {
-	Error(c, http.StatusUnprocessableEntity, message)
+	return (total + limit - 1) / limit
 }

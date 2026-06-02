@@ -1,44 +1,50 @@
 package domain
 
-import "github.com/google/uuid"
+import "context"
 
-// ===========================================
-// Repository Interfaces
-// ===========================================
-// Interfaces are defined in domain layer
-// Implementations are in repository layer
-
-// UserRepository defines the interface for user data access
 type UserRepository interface {
-	Create(user *User) error
-	FindByID(id uuid.UUID) (*User, error)
-	FindByEmail(email string) (*User, error)
-	FindAll(filters UserFilters) ([]*User, int64, error)
-	Update(user *User) error
-	Delete(id uuid.UUID) error
-	Restore(id uuid.UUID) error
-	ExistsByEmail(email string) (bool, error)
+	Create(ctx context.Context, user *User) error
+	FindByID(ctx context.Context, id string) (*User, error)
+	FindByEmail(ctx context.Context, email string) (*User, error)
+	ExistsByEmail(ctx context.Context, email string) (bool, error)
+	AddQuota(ctx context.Context, userID string, delta int64) error
+
+	// Admin operations
+	ListAll(ctx context.Context, page, limit int) ([]*User, int, error)
+	UpdateRole(ctx context.Context, id, role string) error
+	DeleteUser(ctx context.Context, id string) error
 }
 
-// UserFilters contains filter options for listing users
-type UserFilters struct {
-	Name           string
-	Email          string
-	Role           string
-	IsActive       *bool
-	IncludeDeleted bool
-	Page           int
-	Limit          int
-	SortBy         string
-	SortOrder      string // "asc" or "desc"
+type RefreshTokenRepository interface {
+	Save(ctx context.Context, userID, tokenHash string, expiresAt interface{}) error
+	Find(ctx context.Context, tokenHash string) (userID string, err error)
+	Delete(ctx context.Context, tokenHash string) error
+	DeleteByUserID(ctx context.Context, userID string) error
 }
 
-// DefaultUserFilters returns default filter values
-func DefaultUserFilters() UserFilters {
-	return UserFilters{
-		Page:      1,
-		Limit:     10,
-		SortBy:    "created_at",
-		SortOrder: "desc",
-	}
+type DocumentRepository interface {
+	Create(ctx context.Context, doc *Document) error
+	FindByID(ctx context.Context, id, userID string) (*Document, error)
+	List(ctx context.Context, userID string, folderID *string, search string, page, limit int) ([]*Document, int, error)
+	Delete(ctx context.Context, id, userID string) (*Document, error)
+}
+
+type FolderRepository interface {
+	Create(ctx context.Context, folder *Folder) error
+	FindByID(ctx context.Context, id, userID string) (*Folder, error)
+	List(ctx context.Context, userID string) ([]*Folder, error)
+	Update(ctx context.Context, id, userID, name string) error
+	Delete(ctx context.Context, id, userID string) error
+}
+
+type ShareRepository interface {
+	Create(ctx context.Context, link *ShareLink) error
+	FindByToken(ctx context.Context, token string) (*ShareLink, error)
+	FindByID(ctx context.Context, id string) (*ShareLink, error)
+	Delete(ctx context.Context, id, createdBy string) error
+}
+
+type ActivityRepository interface {
+	Log(ctx context.Context, entry *ActivityLog) error
+	List(ctx context.Context, userID string, page, limit int) ([]*ActivityLog, int, error)
 }

@@ -1,84 +1,93 @@
 package main
 
 import (
+	"context"
 	"log"
-	"os"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
-	"github.com/yourname/yourapp/internal/config"
-	"github.com/yourname/yourapp/internal/delivery/http/handler"
-	"github.com/yourname/yourapp/internal/delivery/http/routes"
-	"github.com/yourname/yourapp/internal/infrastructure/database"
-	"github.com/yourname/yourapp/internal/middleware"
-	"github.com/yourname/yourapp/internal/repository"
-	"github.com/yourname/yourapp/internal/usecase/user"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/config"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/handler"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/routes"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/infrastructure/database"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/middleware"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/repository"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/services"
 )
 
 func main() {
-	// 1. Load environment variables
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using system environment")
+		log.Println("no .env file, using system environment")
 	}
 
-	// 2. Load configuration
 	cfg := config.Load()
 
-	// 3. Set Gin mode
-	if cfg.AppEnv == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
+	gin.SetMode(cfg.GinMode)
 
-	// 4. Initialize infrastructure
-	db, err := database.NewPostgres(cfg.Database)
+	ctx := context.Background()
+
+	db, err := database.NewPool(ctx, cfg.DB)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("database: %v", err)
 	}
-	log.Println("✓ Database connected")
+	defer db.Close()
+	log.Println("database connected")
 
-	// 5. Initialize repositories
-	userRepo := repository.NewUserRepository(db)
-
-	// 6. Initialize usecases
-	createUserUC := user.NewCreateUserUsecase(userRepo)
-	getUserUC := user.NewGetUserUsecase(userRepo)
-	listUsersUC := user.NewListUsersUsecase(userRepo)
-	updateUserUC := user.NewUpdateUserUsecase(userRepo)
-	deleteUserUC := user.NewDeleteUserUsecase(userRepo)
-
-	// 7. Initialize handlers
-	userHandler := handler.NewUserHandler(
-		createUserUC,
-		getUserUC,
-		listUsersUC,
-		updateUserUC,
-		deleteUserUC,
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithRegion(cfg.AWS.Region),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			cfg.AWS.AccessKeyID,
+			cfg.AWS.SecretAccessKey,
+			"",
+		)),
 	)
-
-	// 8. Setup router
-	router := gin.Default()
-
-	// 9. Register middleware
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
-	router.Use(middleware.Logger())
-
-	// 10. Register routes
-	routes.RegisterHealthRoutes(router)
-	routes.RegisterUserRoutes(router, userHandler, cfg.JWT.AccessSecret)
-
-	// 11. Start server
-	port := cfg.AppPort
-	if port == "" {
-		port = "8080"
+	if err != nil {
+		log.Fatalf("aws config: %v", err)
 	}
 
-	log.Printf("🚀 Server starting on port %s", port)
-	log.Printf("📝 Environment: %s", cfg.AppEnv)
+	s3Svc, err := services.NewS3Service(*cfg)
+	if err != nil {
+		log.Fatalf("s3 service: %v", err)
+	}
 
-	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-		os.Exit(1)
+	sesClient := ses.NewFromConfig(awsCfg)
+	emailSvc := services.NewEmailService(sesClient, cfg.SES)
+
+	userRepo := repository.NewUserRepository(db)
+	tokenRepo := repository.NewRefreshTokenRepository(db)
+	docRepo := repository.NewDocumentRepository(db)
+	folderRepo := repository.NewFolderRepository(db)
+	shareRepo := repository.NewShareRepository(db)
+	activityRepo := repository.NewActivityRepository(db)
+
+	quotaSvc := services.NewQuotaService(userRepo)
+
+	baseURL := cfg.CloudFrontDomain
+	if baseURL == "" {
+		baseURL = "http://localhost:" + cfg.Port
+	}
+
+	authH := handler.NewAuthHandler(userRepo, tokenRepo, activityRepo, cfg.JWT)
+	docH := handler.NewDocumentHandler(docRepo, userRepo, activityRepo, s3Svc, quotaSvc)
+	folderH := handler.NewFolderHandler(folderRepo)
+	shareH := handler.NewShareHandler(shareRepo, docRepo, userRepo, activityRepo, s3Svc, emailSvc, baseURL)
+	activityH := handler.NewActivityHandler(activityRepo)
+	adminH := handler.NewAdminHandler(userRepo)
+
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery())
+	r.Use(middleware.RateLimit())
+	r.Use(middleware.MaintenanceMode())
+	r.Use(middleware.CORS())
+
+	routes.Register(r, cfg.JWT.Secret, authH, docH, folderH, shareH, activityH, adminH)
+
+	log.Printf("server starting on :%s (mode: %s)", cfg.Port, cfg.GinMode)
+	if err := r.Run(":" + cfg.Port); err != nil {
+		log.Fatalf("server: %v", err)
 	}
 }

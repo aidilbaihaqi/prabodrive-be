@@ -1,136 +1,128 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"time"
 )
 
-// Config holds all application configuration
 type Config struct {
-	AppName  string
-	AppEnv   string
-	AppPort  string
-	AppDebug bool
+	Port            string
+	GinMode         string
+	MaintenanceMode bool
 
-	Database DatabaseConfig
-	JWT      JWTConfig
-	Redis    RedisConfig
-	SMTP     SMTPConfig
+	DB  DBConfig
+	JWT JWTConfig
+	AWS AWSConfig
+	SES SESConfig
+	S3  S3Config
+
+	CloudFrontDomain string
 }
 
-// DatabaseConfig holds database configuration
-type DatabaseConfig struct {
+type DBConfig struct {
 	Host     string
 	Port     string
 	Name     string
 	User     string
 	Password string
 	SSLMode  string
-	Timezone string
 }
 
-// JWTConfig holds JWT configuration
 type JWTConfig struct {
-	AccessSecret  string
-	RefreshSecret string
+	Secret        string
 	AccessExpiry  time.Duration
 	RefreshExpiry time.Duration
 }
 
-// RedisConfig holds Redis configuration
-type RedisConfig struct {
-	Host     string
-	Port     string
-	Password string
-	DB       int
+type AWSConfig struct {
+	Region          string
+	AccessKeyID     string
+	SecretAccessKey string
 }
 
-// SMTPConfig holds SMTP configuration
-type SMTPConfig struct {
-	Host      string
-	Port      int
-	Username  string
-	Password  string
-	FromName  string
+type SESConfig struct {
 	FromEmail string
 }
 
-// Load loads configuration from environment variables
-func Load() *Config {
-	return &Config{
-		AppName:  getEnv("APP_NAME", "myapp"),
-		AppEnv:   getEnv("APP_ENV", "development"),
-		AppPort:  getEnv("APP_PORT", "8080"),
-		AppDebug: getEnvBool("APP_DEBUG", true),
+type S3Config struct {
+	Bucket        string
+	PresignExpiry time.Duration
+}
 
-		Database: DatabaseConfig{
+func Load() *Config {
+	secret := getEnv("JWT_SECRET", "")
+	if len(secret) < 32 {
+		log.Fatal("JWT_SECRET must be at least 32 characters")
+	}
+
+	return &Config{
+		Port:            getEnv("PORT", "8080"),
+		GinMode:         getEnv("GIN_MODE", "debug"),
+		MaintenanceMode: getEnvBool("MAINTENANCE_MODE", false),
+
+		DB: DBConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
-			Name:     getEnv("DB_NAME", "myapp_db"),
+			Name:     getEnv("DB_NAME", "prabodrive"),
 			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", "postgres"),
-			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
-			Timezone: getEnv("DB_TIMEZONE", "Asia/Jakarta"),
+			Password: getEnv("DB_PASSWORD", "secret"),
+			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 
 		JWT: JWTConfig{
-			AccessSecret:  getEnv("JWT_ACCESS_SECRET", "secret"),
-			RefreshSecret: getEnv("JWT_REFRESH_SECRET", "secret"),
-			AccessExpiry:  getEnvDuration("JWT_ACCESS_EXPIRY", 15*time.Minute),
+			Secret:        secret,
+			AccessExpiry:  getEnvDuration("JWT_ACCESS_EXPIRY", time.Hour),
 			RefreshExpiry: getEnvDuration("JWT_REFRESH_EXPIRY", 7*24*time.Hour),
 		},
 
-		Redis: RedisConfig{
-			Host:     getEnv("REDIS_HOST", "localhost"),
-			Port:     getEnv("REDIS_PORT", "6379"),
-			Password: getEnv("REDIS_PASSWORD", ""),
-			DB:       getEnvInt("REDIS_DB", 0),
+		AWS: AWSConfig{
+			Region:          getEnv("AWS_REGION", "ap-southeast-1"),
+			AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+			SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 		},
 
-		SMTP: SMTPConfig{
-			Host:      getEnv("SMTP_HOST", ""),
-			Port:      getEnvInt("SMTP_PORT", 587),
-			Username:  getEnv("SMTP_USERNAME", ""),
-			Password:  getEnv("SMTP_PASSWORD", ""),
-			FromName:  getEnv("SMTP_FROM_NAME", ""),
-			FromEmail: getEnv("SMTP_FROM_EMAIL", ""),
+		SES: SESConfig{
+			FromEmail: getEnv("SES_FROM_EMAIL", "no-reply@prabodrive.com"),
 		},
+
+		S3: S3Config{
+			Bucket:        getEnv("S3_BUCKET", "prabodrive-prod"),
+			PresignExpiry: getEnvDuration("S3_PRESIGN_EXPIRY", 15*time.Minute),
+		},
+
+		CloudFrontDomain: getEnv("CLOUDFRONT_DOMAIN", ""),
 	}
 }
 
-// Helper functions
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-	return defaultValue
+	return fallback
 }
 
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
+func getEnvBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
 	}
-	return defaultValue
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return b
 }
 
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
-		}
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
 	}
-	return defaultValue
-}
-
-func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
 	}
-	return defaultValue
+	return d
 }

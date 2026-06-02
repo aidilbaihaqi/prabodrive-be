@@ -1,4 +1,10 @@
-.PHONY: help run build test clean migrate-up migrate-down docker-build docker-up docker-down lint fmt
+# Auto-load .env so DB_* variables are available without exporting manually
+ifneq (,$(wildcard .env))
+    include .env
+    export
+endif
+
+.PHONY: help run build test clean migrate-up migrate-down migrate-down-all migrate-fresh migrate-version migrate-create docker-build docker-up docker-down lint fmt
 
 # ==========================================
 # HELP
@@ -17,6 +23,9 @@ run: ## Run the application
 
 dev: ## Run with hot reload (requires air)
 	air
+
+seed: ## Run database seeder (creates admin + sample user)
+	go run ./cmd/seeder
 
 build: ## Build the application
 	go build -o bin/api ./cmd/api
@@ -44,13 +53,25 @@ test-integration: ## Run integration tests
 # ==========================================
 # DATABASE
 # ==========================================
-migrate-up: ## Run database migrations up
-	migrate -path migrations -database "$(DATABASE_URL)" up
+DB_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 
-migrate-down: ## Run database migrations down
-	migrate -path migrations -database "$(DATABASE_URL)" down
+migrate-up: ## Run all pending migrations
+	migrate -path migrations -database "$(DB_URL)" up
 
-migrate-create: ## Create new migration (usage: make migrate-create name=create_users)
+migrate-down: ## Rollback 1 migration
+	migrate -path migrations -database "$(DB_URL)" down 1
+
+migrate-down-all: ## Rollback semua migration
+	migrate -path migrations -database "$(DB_URL)" down -all
+
+migrate-fresh: ## Drop semua tabel lalu migrate ulang (hapus semua data!)
+	migrate -path migrations -database "$(DB_URL)" down -all
+	migrate -path migrations -database "$(DB_URL)" up
+
+migrate-version: ## Cek versi migration saat ini
+	migrate -path migrations -database "$(DB_URL)" version
+
+migrate-create: ## Buat migration baru (usage: make migrate-create name=add_users_table)
 	migrate create -ext sql -dir migrations -seq $(name)
 
 # ==========================================

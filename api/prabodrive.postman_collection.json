@@ -1,0 +1,456 @@
+{
+  "info": {
+    "_postman_id": "prabodrive-collection-v1",
+    "name": "prabodrive API",
+    "description": "Cloud Document Management — prabodrive backend API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  pm.environment.set('access_token', j.access_token);",
+                  "  pm.environment.set('refresh_token', j.refresh_token);",
+                  "  pm.environment.set('user_id', j.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/register", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "register"] }
+          }
+        },
+        {
+          "name": "Login (User)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.environment.set('access_token', j.access_token);",
+                  "  pm.environment.set('refresh_token', j.refresh_token);",
+                  "  pm.environment.set('user_id', j.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@prabodrive.com\",\n  \"password\": \"User@prabodrive123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/login", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.environment.set('access_token', j.access_token);",
+                  "  pm.environment.set('refresh_token', j.refresh_token);",
+                  "  pm.environment.set('user_id', j.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@prabodrive.com\",\n  \"password\": \"Admin@prabodrive123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/login", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.environment.set('access_token', j.access_token);",
+                  "  pm.environment.set('refresh_token', j.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/refresh", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/logout", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folders",
+      "item": [
+        {
+          "name": "List Folders",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/folders", "host": ["{{base_url}}"], "path": ["api", "v1", "folders"] }
+          }
+        },
+        {
+          "name": "Get Folder",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/folders/{{folder_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "folders", "{{folder_id}}"] }
+          }
+        },
+        {
+          "name": "Create Folder",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('folder_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Documents\",\n  \"parent_id\": null\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/folders", "host": ["{{base_url}}"], "path": ["api", "v1", "folders"] }
+          }
+        },
+        {
+          "name": "Update Folder",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Renamed Folder\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/folders/{{folder_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "folders", "{{folder_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Folder",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/api/v1/folders/{{folder_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "folders", "{{folder_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "documents"],
+              "query": [
+                { "key": "folder_id", "value": "{{folder_id}}", "disabled": true },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Document",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/documents/{{document_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "documents", "{{document_id}}"] }
+          }
+        },
+        {
+          "name": "1. Presign Upload",
+          "description": "Step 1 dari 3: Minta presigned URL untuk upload ke S3.\nSetelah dapat upload_url dan s3_key, lakukan PUT ke upload_url dengan file binary.\nLalu panggil Confirm Upload dengan s3_key yang didapat.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.environment.set('s3_key', j.s3_key);",
+                  "  pm.environment.set('upload_url', j.upload_url);",
+                  "  console.log('Upload URL:', j.upload_url);",
+                  "  console.log('S3 Key:', j.s3_key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"document.pdf\",\n  \"size\": 102400,\n  \"mime_type\": \"application/pdf\",\n  \"folder_id\": null\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/documents/presign-upload", "host": ["{{base_url}}"], "path": ["api", "v1", "documents", "presign-upload"] }
+          }
+        },
+        {
+          "name": "2. Upload to S3 (PUT)",
+          "description": "Step 2 dari 3: Upload file langsung ke S3 menggunakan presigned URL.\nGunakan upload_url dari step sebelumnya.\nMethod: PUT, body: file binary, header Content-Type sesuai mime_type.",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/pdf" }],
+            "body": { "mode": "file", "file": {} },
+            "url": { "raw": "{{upload_url}}", "host": ["{{upload_url}}"] }
+          }
+        },
+        {
+          "name": "3. Confirm Upload",
+          "description": "Step 3 dari 3: Daftarkan dokumen ke database setelah upload ke S3 berhasil.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('document_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"s3_key\": \"{{s3_key}}\",\n  \"name\": \"document.pdf\",\n  \"size\": 102400,\n  \"mime_type\": \"application/pdf\",\n  \"folder_id\": null\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/documents/confirm-upload", "host": ["{{base_url}}"], "path": ["api", "v1", "documents", "confirm-upload"] }
+          }
+        },
+        {
+          "name": "Download Document",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/documents/{{document_id}}/download", "host": ["{{base_url}}"], "path": ["api", "v1", "documents", "{{document_id}}", "download"] }
+          }
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/api/v1/documents/{{document_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "documents", "{{document_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Share Links",
+      "item": [
+        {
+          "name": "Create Share Link",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.environment.set('share_id', j.id);",
+                  "  pm.environment.set('share_token', j.token);",
+                  "  console.log('Share URL:', j.share_url);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"expires_at\": \"2026-12-31T23:59:59Z\",\n  \"password\": null\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/share", "host": ["{{base_url}}"], "path": ["api", "v1", "share"] }
+          }
+        },
+        {
+          "name": "Create Share Link (with password)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"expires_at\": \"2026-12-31T23:59:59Z\",\n  \"password\": \"rahasia123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/share", "host": ["{{base_url}}"], "path": ["api", "v1", "share"] }
+          }
+        },
+        {
+          "name": "Access Share Link (Public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/share/{{share_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "share", "{{share_token}}"],
+              "query": [{ "key": "password", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Delete Share Link",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/api/v1/share/{{share_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "share", "{{share_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Activity",
+      "item": [
+        {
+          "name": "List Activity",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/activity?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "activity"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Butuh login sebagai admin terlebih dahulu.",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/users?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/admin/users/{{target_user_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "users", "{{target_user_id}}"] }
+          }
+        },
+        {
+          "name": "Update User Role",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/admin/users/{{target_user_id}}/role", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "users", "{{target_user_id}}", "role"] }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/api/v1/admin/users/{{target_user_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "users", "{{target_user_id}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,186 +1,134 @@
 package repository
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"time"
 
-	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/yourname/yourapp/internal/domain"
-	"github.com/yourname/yourapp/internal/repository/models"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/domain"
 )
 
-type userRepository struct {
-	db *gorm.DB
+type userRepo struct {
+	db *pgxpool.Pool
 }
 
-// NewUserRepository creates a new user repository instance
-func NewUserRepository(db *gorm.DB) domain.UserRepository {
-	return &userRepository{db: db}
+func NewUserRepository(db *pgxpool.Pool) domain.UserRepository {
+	return &userRepo{db: db}
 }
 
-// Create creates a new user in the database
-func (r *userRepository) Create(user *domain.User) error {
-	model := r.toModel(user)
-	if err := r.db.Create(model).Error; err != nil {
-		return r.handleError(err)
+func (r *userRepo) Create(ctx context.Context, u *domain.User) error {
+	_, err := r.db.Exec(ctx,
+		`INSERT INTO users (id, email, password_hash, name, role, quota_used, quota_max, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		u.ID, u.Email, u.PasswordHash, u.Name, u.Role, u.QuotaUsed, u.QuotaMax, u.CreatedAt, u.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("userRepo.Create: %w", err)
 	}
 	return nil
 }
 
-// FindByID finds a user by their ID
-func (r *userRepository) FindByID(id uuid.UUID) (*domain.User, error) {
-	var model models.User
-	err := r.db.Where("id = ?", id).First(&model).Error
-	if err != nil {
-		return nil, r.handleError(err)
-	}
-	return r.toDomain(&model), nil
+func (r *userRepo) FindByID(ctx context.Context, id string) (*domain.User, error) {
+	row := r.db.QueryRow(ctx,
+		`SELECT id, email, password_hash, name, role, quota_used, quota_max, created_at, updated_at
+		 FROM users WHERE id = $1`, id)
+	return scanUser(row)
 }
 
-// FindByEmail finds a user by their email
-func (r *userRepository) FindByEmail(email string) (*domain.User, error) {
-	var model models.User
-	err := r.db.Where("email = ?", email).First(&model).Error
-	if err != nil {
-		return nil, r.handleError(err)
-	}
-	return r.toDomain(&model), nil
+func (r *userRepo) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
+	row := r.db.QueryRow(ctx,
+		`SELECT id, email, password_hash, name, role, quota_used, quota_max, created_at, updated_at
+		 FROM users WHERE email = $1`, email)
+	return scanUser(row)
 }
 
-// FindAll returns a paginated list of users with filters
-func (r *userRepository) FindAll(filters domain.UserFilters) ([]*domain.User, int64, error) {
-	var models []models.User
-	var total int64
+func (r *userRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)`, email).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("userRepo.ExistsByEmail: %w", err)
+	}
+	return exists, nil
+}
 
-	query := r.db.Model(&models)
+func (r *userRepo) AddQuota(ctx context.Context, userID string, delta int64) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE users SET quota_used = quota_used + $1, updated_at = $2 WHERE id = $3`,
+		delta, time.Now(), userID,
+	)
+	if err != nil {
+		return fmt.Errorf("userRepo.AddQuota: %w", err)
+	}
+	return nil
+}
 
-	// Apply filters
-	if filters.Name != "" {
-		query = query.Where("name ILIKE ?", "%"+filters.Name+"%")
-	}
-	if filters.Email != "" {
-		query = query.Where("email ILIKE ?", "%"+filters.Email+"%")
-	}
-	if filters.Role != "" {
-		query = query.Where("role = ?", filters.Role)
-	}
-	if filters.IsActive != nil {
-		query = query.Where("is_active = ?", *filters.IsActive)
-	}
-	if !filters.IncludeDeleted {
-		query = query.Where("deleted_at IS NULL")
-	} else {
-		query = query.Unscoped()
-	}
-
-	// Count total before pagination
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+func (r *userRepo) ListAll(ctx context.Context, page, limit int) ([]*domain.User, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("userRepo.ListAll count: %w", err)
 	}
 
-	// Apply sorting
-	if filters.SortBy != "" {
-		order := filters.SortBy
-		if filters.SortOrder == "desc" {
-			order += " DESC"
-		} else {
-			order += " ASC"
+	offset := (page - 1) * limit
+	rows, err := r.db.Query(ctx,
+		`SELECT id, email, password_hash, name, role, quota_used, quota_max, created_at, updated_at
+		 FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		limit, offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("userRepo.ListAll query: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*domain.User
+	for rows.Next() {
+		u := &domain.User{}
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role,
+			&u.QuotaUsed, &u.QuotaMax, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, 0, fmt.Errorf("userRepo.ListAll scan: %w", err)
 		}
-		query = query.Order(order)
+		users = append(users, u)
 	}
-
-	// Apply pagination
-	if filters.Limit > 0 {
-		offset := (filters.Page - 1) * filters.Limit
-		query = query.Offset(offset).Limit(filters.Limit)
-	}
-
-	// Execute query
-	if err := query.Find(&models).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// Convert to domain entities
-	users := make([]*domain.User, len(models))
-	for i, model := range models {
-		users[i] = r.toDomain(&model)
-	}
-
-	return users, total, nil
+	return users, total, rows.Err()
 }
 
-// Update updates a user in the database
-func (r *userRepository) Update(user *domain.User) error {
-	return r.db.Model(&models.User{}).
-		Where("id = ?", user.ID).
-		Updates(map[string]interface{}{
-			"email":     user.Email,
-			"password":  user.Password,
-			"name":      user.Name,
-			"role":      user.Role,
-			"is_active": user.IsActive,
-		}).Error
-}
-
-// Delete soft deletes a user
-func (r *userRepository) Delete(id uuid.UUID) error {
-	return r.db.Where("id = ?", id).Delete(&models.User{}).Error
-}
-
-// Restore restores a soft-deleted user
-func (r *userRepository) Restore(id uuid.UUID) error {
-	return r.db.Model(&models.User{}).
-		Unscoped().
-		Where("id = ?", id).
-		Update("deleted_at", nil).Error
-}
-
-// ExistsByEmail checks if a user with the given email exists
-func (r *userRepository) ExistsByEmail(email string) (bool, error) {
-	var count int64
-	err := r.db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error
-	return count > 0, err
-}
-
-// ===========================================
-// Helper Methods
-// ===========================================
-
-// toModel converts domain entity to GORM model
-func (r *userRepository) toModel(user *domain.User) *models.User {
-	return &models.User{
-		ID:       user.ID,
-		Email:    user.Email,
-		Password: user.Password,
-		Name:     user.Name,
-		Role:     user.Role,
-		IsActive: user.IsActive,
+func (r *userRepo) UpdateRole(ctx context.Context, id, role string) error {
+	tag, err := r.db.Exec(ctx,
+		`UPDATE users SET role = $1, updated_at = $2 WHERE id = $3`,
+		role, time.Now(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("userRepo.UpdateRole: %w", err)
 	}
-}
-
-// toDomain converts GORM model to domain entity
-func (r *userRepository) toDomain(model *models.User) *domain.User {
-	user := &domain.User{
-		ID:        model.ID,
-		Email:     model.Email,
-		Password:  model.Password,
-		Name:      model.Name,
-		Role:      model.Role,
-		IsActive:  model.IsActive,
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
-	}
-	if model.DeletedAt.Valid {
-		user.DeletedAt = &model.DeletedAt.Time
-	}
-	return user
-}
-
-// handleError converts database errors to domain errors
-func (r *userRepository) handleError(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if tag.RowsAffected() == 0 {
 		return domain.ErrUserNotFound
 	}
-	return err
+	return nil
+}
+
+func (r *userRepo) DeleteUser(ctx context.Context, id string) error {
+	tag, err := r.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("userRepo.DeleteUser: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrUserNotFound
+	}
+	return nil
+}
+
+func scanUser(row pgx.Row) (*domain.User, error) {
+	u := &domain.User{}
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role,
+		&u.QuotaUsed, &u.QuotaMax, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("userRepo scan: %w", err)
+	}
+	return u, nil
 }

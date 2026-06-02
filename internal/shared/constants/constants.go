@@ -1,58 +1,26 @@
 package constants
 
-// User roles
 const (
-	RoleUser  = "user"
+	ContextUserID    = "user_id"
+	ContextUserEmail = "user_email"
+	ContextUserRole  = "user_role"
+
 	RoleAdmin = "admin"
-)
+	RoleUser  = "user"
 
-// Pagination defaults
-const (
 	DefaultPage  = 1
-	DefaultLimit = 10
-	MaxLimit     = 100
-)
+	DefaultLimit = 20
+	MaxLimit     = 50
 
-// Response messages
-const (
-	MsgSuccess       = "Success"
-	MsgCreated       = "Resource created successfully"
-	MsgUpdated       = "Resource updated successfully"
-	MsgDeleted       = "Resource deleted successfully"
-	MsgUnauthorized  = "Unauthorized"
-	MsgForbidden     = "Access forbidden"
-	MsgNotFound      = "Resource not found"
-	MsgBadRequest    = "Bad request"
-	MsgInternalError = "Internal server error"
-)
+	MaxFileSize = 5 * 1024 * 1024 // 5 MB in bytes
 
-// Context keys
-const (
-	ContextKeyUserID    = "user_id"
-	ContextKeyUserRole  = "user_role"
-	ContextKeyRequestID = "request_id"
-)
+	DefaultQuotaMax = 3 * 1024 * 1024 * 1024 // 3 GB in bytes
 
-// HTTP headers
-const (
-	HeaderAuthorization = "Authorization"
-	HeaderContentType   = "Content-Type"
-	HeaderRequestID     = "X-Request-ID"
-)
-
-// Date/time formats
-const (
-	DateFormat     = "2006-01-02"
-	TimeFormat     = "15:04:05"
-	DateTimeFormat = "2006-01-02 15:04:05"
-	ISO8601Format  = "2006-01-02T15:04:05Z07:00"
-)
-
-// Validation constraints
-const (
-	MinPasswordLength = 8
-	MaxPasswordLength = 72 // bcrypt limit
-	MinNameLength     = 2
-	MaxNameLength     = 100
-	MaxEmailLength    = 254
+	ActionUpload      = "upload"
+	ActionDownload    = "download"
+	ActionShareCreate = "share_create"
+	ActionShareAccess = "share_access"
+	ActionDelete      = "delete"
+	ActionLogin       = "login"
+	ActionLogout      = "logout"
 )

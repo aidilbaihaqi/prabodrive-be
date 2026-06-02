@@ -3,43 +3,64 @@ package routes
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/yourname/yourapp/internal/delivery/http/handler"
-	"github.com/yourname/yourapp/internal/middleware"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/handler"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/middleware"
 )
 
-// RegisterUserRoutes registers all user-related routes
-func RegisterUserRoutes(r *gin.Engine, h *handler.UserHandler, jwtSecret string) {
-	// API version group
-	v1 := r.Group("/api/v1")
+func Register(
+	r *gin.Engine,
+	jwtSecret string,
+	authH *handler.AuthHandler,
+	docH *handler.DocumentHandler,
+	folderH *handler.FolderHandler,
+	shareH *handler.ShareHandler,
+	activityH *handler.ActivityHandler,
+	adminH *handler.AdminHandler,
+) {
+	r.GET("/health", handler.Health)
 
-	// Public routes (no authentication required)
-	// Add public routes here if needed
+	api := r.Group("/api/v1")
 
-	// Protected routes (authentication required)
-	users := v1.Group("/users")
-	users.Use(middleware.Auth(jwtSecret))
+	// Auth
+	auth := api.Group("/auth")
 	{
-		users.POST("", h.Create)
-		users.GET("", h.List)
-		users.GET("/:id", h.Get)
-		users.PUT("/:id", h.Update)
-		users.DELETE("/:id", h.Delete)
+		auth.POST("/register", authH.Register)
+		auth.POST("/login", authH.Login)
+		auth.POST("/refresh", authH.Refresh)
+		auth.POST("/logout", middleware.Auth(jwtSecret), authH.Logout)
 	}
-}
 
-// RegisterHealthRoutes registers health check routes
-func RegisterHealthRoutes(r *gin.Engine) {
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status":  "healthy",
-			"message": "Service is running",
-		})
-	})
+	// Protected user routes
+	protected := api.Group("/", middleware.Auth(jwtSecret))
+	{
+		protected.GET("/documents", docH.List)
+		protected.GET("/documents/:id", docH.Get)
+		protected.POST("/documents/presign-upload", docH.PresignUpload)
+		protected.POST("/documents/confirm-upload", docH.ConfirmUpload)
+		protected.DELETE("/documents/:id", docH.Delete)
+		protected.GET("/documents/:id/download", docH.Download)
 
-	r.GET("/ready", func(c *gin.Context) {
-		// Add readiness checks here (db connection, etc.)
-		c.JSON(200, gin.H{
-			"status": "ready",
-		})
-	})
+		protected.GET("/folders", folderH.List)
+		protected.GET("/folders/:id", folderH.Get)
+		protected.POST("/folders", folderH.Create)
+		protected.PATCH("/folders/:id", folderH.Update)
+		protected.DELETE("/folders/:id", folderH.Delete)
+
+		protected.POST("/share", shareH.Create)
+		protected.DELETE("/share/:id", shareH.Delete)
+
+		protected.GET("/activity", activityH.List)
+	}
+
+	// Public share access
+	api.GET("/share/:token", shareH.Access)
+
+	// Admin routes — requires auth + admin role
+	admin := api.Group("/admin", middleware.Auth(jwtSecret), middleware.RequireAdmin())
+	{
+		admin.GET("/users", adminH.ListUsers)
+		admin.GET("/users/:id", adminH.GetUser)
+		admin.PATCH("/users/:id/role", adminH.UpdateRole)
+		admin.DELETE("/users/:id", adminH.DeleteUser)
+	}
 }
