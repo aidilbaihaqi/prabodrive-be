@@ -39,7 +39,7 @@ func (r *activityRepo) List(ctx context.Context, userID string, page, limit int)
 
 	offset := (page - 1) * limit
 	rows, err := r.db.Query(ctx,
-		`SELECT id, user_id, action, document_id, ip_address, created_at
+		`SELECT id, user_id, action, document_id, ip_address::text, created_at
 		 FROM activity_logs WHERE user_id = $1
 		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		userID, limit, offset)

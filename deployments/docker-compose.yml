@@ -1,18 +1,18 @@
 services:
   api:
     build:
-      context: ../..
+      context: ..
       dockerfile: build/docker/Dockerfile
     ports:
       - "8080:8080"
-    env_file: ../../.env
+    env_file: ../.env
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
 
   db:
-    image: postgres:18
+    image: postgres:16
     environment:
       POSTGRES_DB: prabodrive
       POSTGRES_USER: postgres
@@ -21,7 +21,6 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ../../migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
