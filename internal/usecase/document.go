@@ -127,7 +127,7 @@ func (u *documentUsecase) Rename(ctx context.Context, id, userID, name string) e
 }
 
 func (u *documentUsecase) Delete(ctx context.Context, id, userID, ip string) (string, error) {
-	doc, err := u.docs.Delete(ctx, id, userID)
+	doc, err := u.docs.FindByID(ctx, id, userID)
 	if err != nil {
 		return "", err
 	}
@@ -135,6 +135,11 @@ func (u *documentUsecase) Delete(ctx context.Context, id, userID, ip string) (st
 	if err := u.s3.DeleteObject(ctx, doc.S3Key); err != nil {
 		return "", fmt.Errorf("s3 delete: %w", err)
 	}
+
+	if _, err := u.docs.Delete(ctx, id, userID); err != nil {
+		return "", err
+	}
+
 	if err := u.users.AddQuota(ctx, userID, -doc.Size); err != nil {
 		return "", err
 	}

@@ -95,6 +95,34 @@ func (r *userRepo) ListAll(ctx context.Context, page, limit int) ([]*domain.User
 	return users, total, rows.Err()
 }
 
+func (r *userRepo) UpdateProfile(ctx context.Context, id, name string) error {
+	tag, err := r.db.Exec(ctx,
+		`UPDATE users SET name = $1, updated_at = $2 WHERE id = $3`,
+		name, time.Now(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("userRepo.UpdateProfile: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *userRepo) UpdatePassword(ctx context.Context, id, passwordHash string) error {
+	tag, err := r.db.Exec(ctx,
+		`UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3`,
+		passwordHash, time.Now(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("userRepo.UpdatePassword: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrUserNotFound
+	}
+	return nil
+}
+
 func (r *userRepo) UpdateRole(ctx context.Context, id, role string) error {
 	tag, err := r.db.Exec(ctx,
 		`UPDATE users SET role = $1, updated_at = $2 WHERE id = $3`,

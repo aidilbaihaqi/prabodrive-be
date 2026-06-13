@@ -9,6 +9,9 @@ type UserRepository interface {
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	AddQuota(ctx context.Context, userID string, delta int64) error
 
+	UpdateProfile(ctx context.Context, id, name string) error
+	UpdatePassword(ctx context.Context, id, passwordHash string) error
+
 	// Admin operations
 	ListAll(ctx context.Context, page, limit int) ([]*User, int, error)
 	UpdateRole(ctx context.Context, id, role string) error

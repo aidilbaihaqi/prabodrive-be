@@ -90,6 +90,81 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	})
 }
 
+func (h *AuthHandler) GetProfile(c *gin.Context) {
+	userID := c.GetString("user_id")
+	user, err := h.auth.GetProfile(c.Request.Context(), userID)
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+	response.OK(c, "profile retrieved", gin.H{
+		"id":         user.ID,
+		"name":       user.Name,
+		"email":      user.Email,
+		"role":       user.Role,
+		"quota_used": user.QuotaUsed,
+		"quota_max":  user.QuotaMax,
+		"created_at": user.CreatedAt,
+		"updated_at": user.UpdatedAt,
+	})
+}
+
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	var req request.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	userID := c.GetString("user_id")
+
+	if req.Name == "" && req.NewPassword == "" {
+		response.BadRequest(c, "at least one of name or new_password is required")
+		return
+	}
+
+	if req.NewPassword != "" {
+		if req.CurrentPassword == "" {
+			response.BadRequest(c, "current_password is required when changing password")
+			return
+		}
+	}
+
+	if req.NewPassword != "" {
+		if err := h.auth.ChangePassword(c.Request.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
+			if errors.Is(err, domain.ErrUnauthorized) {
+				response.BadRequest(c, "current password is incorrect")
+				return
+			}
+			response.InternalError(c, err)
+			return
+		}
+	}
+
+	if req.Name != "" {
+		if _, err := h.auth.UpdateProfile(c.Request.Context(), userID, req.Name); err != nil {
+			response.InternalError(c, err)
+			return
+		}
+	}
+
+	user, err := h.auth.GetProfile(c.Request.Context(), userID)
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+
+	response.OK(c, "profile updated", gin.H{
+		"id":         user.ID,
+		"name":       user.Name,
+		"email":      user.Email,
+		"role":       user.Role,
+		"quota_used": user.QuotaUsed,
+		"quota_max":  user.QuotaMax,
+		"updated_at": user.UpdatedAt,
+	})
+}
+
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req request.LogoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

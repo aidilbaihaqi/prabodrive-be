@@ -33,6 +33,9 @@ func Register(
 	// Protected user routes
 	protected := api.Group("/", middleware.Auth(jwtSecret))
 	{
+		protected.GET("/me", authH.GetProfile)
+		protected.PATCH("/me", authH.UpdateProfile)
+
 		protected.GET("/documents", docH.List)
 		protected.GET("/documents/:id", docH.Get)
 		protected.POST("/documents/presign-upload", docH.PresignUpload)

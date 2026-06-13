@@ -31,6 +31,9 @@ type AuthUsecase interface {
 	Login(ctx context.Context, email, password, ip string) (*AuthOutput, error)
 	Refresh(ctx context.Context, refreshToken string) (*TokenPair, error)
 	Logout(ctx context.Context, userID, refreshToken, ip string) error
+	GetProfile(ctx context.Context, userID string) (*domain.User, error)
+	UpdateProfile(ctx context.Context, userID, name string) (*domain.User, error)
+	ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error
 }
 
 type authUsecase struct {
@@ -157,6 +160,32 @@ func (u *authUsecase) Logout(ctx context.Context, userID, refreshToken, ip strin
 		CreatedAt: time.Now(),
 	})
 	return nil
+}
+
+func (u *authUsecase) GetProfile(ctx context.Context, userID string) (*domain.User, error) {
+	return u.users.FindByID(ctx, userID)
+}
+
+func (u *authUsecase) UpdateProfile(ctx context.Context, userID, name string) (*domain.User, error) {
+	if err := u.users.UpdateProfile(ctx, userID, name); err != nil {
+		return nil, err
+	}
+	return u.users.FindByID(ctx, userID)
+}
+
+func (u *authUsecase) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	user, err := u.users.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return domain.ErrUnauthorized
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	if err != nil {
+		return err
+	}
+	return u.users.UpdatePassword(ctx, userID, string(hash))
 }
 
 func (u *authUsecase) issueTokenPair(ctx context.Context, userID, email, role string) (access, refresh string, err error) {
