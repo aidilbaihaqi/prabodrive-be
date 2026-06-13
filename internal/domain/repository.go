@@ -26,13 +26,15 @@ type DocumentRepository interface {
 	Create(ctx context.Context, doc *Document) error
 	FindByID(ctx context.Context, id, userID string) (*Document, error)
 	List(ctx context.Context, userID string, folderID *string, search string, page, limit int) ([]*Document, int, error)
+	Rename(ctx context.Context, id, userID, name string) error
 	Delete(ctx context.Context, id, userID string) (*Document, error)
 }
 
 type FolderRepository interface {
 	Create(ctx context.Context, folder *Folder) error
 	FindByID(ctx context.Context, id, userID string) (*Folder, error)
-	List(ctx context.Context, userID string) ([]*Folder, error)
+	// parentID nil = all folders; ptr to "" = root only; ptr to uuid = children of that folder
+	List(ctx context.Context, userID string, parentID *string) ([]*Folder, error)
 	Update(ctx context.Context, id, userID, name string) error
 	Delete(ctx context.Context, id, userID string) error
 }
@@ -41,6 +43,7 @@ type ShareRepository interface {
 	Create(ctx context.Context, link *ShareLink) error
 	FindByToken(ctx context.Context, token string) (*ShareLink, error)
 	FindByID(ctx context.Context, id string) (*ShareLink, error)
+	ListByUser(ctx context.Context, userID string, page, limit int) ([]*ShareLink, int, error)
 	Delete(ctx context.Context, id, createdBy string) error
 }
 

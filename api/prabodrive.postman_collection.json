@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "prabodrive-collection-v1",
+    "_postman_id": "prabodrive-collection-v2",
     "name": "prabodrive API",
     "description": "Cloud Document Management — prabodrive backend API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -35,9 +35,9 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "  const j = pm.response.json();",
-                  "  pm.environment.set('access_token', j.access_token);",
-                  "  pm.environment.set('refresh_token', j.refresh_token);",
-                  "  pm.environment.set('user_id', j.id);",
+                  "  pm.environment.set('access_token', j.data.access_token);",
+                  "  pm.environment.set('refresh_token', j.data.refresh_token);",
+                  "  pm.environment.set('user_id', j.data.id);",
                   "}"
                 ]
               }
@@ -63,9 +63,9 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const j = pm.response.json();",
-                  "  pm.environment.set('access_token', j.access_token);",
-                  "  pm.environment.set('refresh_token', j.refresh_token);",
-                  "  pm.environment.set('user_id', j.id);",
+                  "  pm.environment.set('access_token', j.data.access_token);",
+                  "  pm.environment.set('refresh_token', j.data.refresh_token);",
+                  "  pm.environment.set('user_id', j.data.id);",
                   "}"
                 ]
               }
@@ -91,9 +91,9 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const j = pm.response.json();",
-                  "  pm.environment.set('access_token', j.access_token);",
-                  "  pm.environment.set('refresh_token', j.refresh_token);",
-                  "  pm.environment.set('user_id', j.id);",
+                  "  pm.environment.set('access_token', j.data.access_token);",
+                  "  pm.environment.set('refresh_token', j.data.refresh_token);",
+                  "  pm.environment.set('user_id', j.data.id);",
                   "}"
                 ]
               }
@@ -119,8 +119,8 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const j = pm.response.json();",
-                  "  pm.environment.set('access_token', j.access_token);",
-                  "  pm.environment.set('refresh_token', j.refresh_token);",
+                  "  pm.environment.set('access_token', j.data.access_token);",
+                  "  pm.environment.set('refresh_token', j.data.refresh_token);",
                   "}"
                 ]
               }
@@ -155,10 +155,38 @@
       "name": "Folders",
       "item": [
         {
-          "name": "List Folders",
+          "name": "List Folders (All)",
           "request": {
             "method": "GET",
-            "url": { "raw": "{{base_url}}/api/v1/folders", "host": ["{{base_url}}"], "path": ["api", "v1", "folders"] }
+            "url": {
+              "raw": "{{base_url}}/api/v1/folders",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "folders"]
+            }
+          }
+        },
+        {
+          "name": "List Folders (Root Only)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/folders?parent_id=root",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "folders"],
+              "query": [{ "key": "parent_id", "value": "root" }]
+            }
+          }
+        },
+        {
+          "name": "List Folders (Children of Folder)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/folders?parent_id={{folder_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "folders"],
+              "query": [{ "key": "parent_id", "value": "{{folder_id}}" }]
+            }
           }
         },
         {
@@ -176,7 +204,7 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "  pm.environment.set('folder_id', pm.response.json().id);",
+                  "  pm.environment.set('folder_id', pm.response.json().data.id);",
                   "}"
                 ]
               }
@@ -188,6 +216,18 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"My Documents\",\n  \"parent_id\": null\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/folders", "host": ["{{base_url}}"], "path": ["api", "v1", "folders"] }
+          }
+        },
+        {
+          "name": "Create Subfolder",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Subfolder\",\n  \"parent_id\": \"{{folder_id}}\"\n}"
             },
             "url": { "raw": "{{base_url}}/api/v1/folders", "host": ["{{base_url}}"], "path": ["api", "v1", "folders"] }
           }
@@ -242,7 +282,7 @@
         },
         {
           "name": "1. Presign Upload",
-          "description": "Step 1 dari 3: Minta presigned URL untuk upload ke S3.\nSetelah dapat upload_url dan s3_key, lakukan PUT ke upload_url dengan file binary.\nLalu panggil Confirm Upload dengan s3_key yang didapat.",
+          "description": "Step 1: Request a presigned URL for S3 upload.\nAfter getting upload_url and s3_key, PUT the file binary directly to upload_url.\nThen call Confirm Upload with the s3_key.",
           "event": [
             {
               "listen": "test",
@@ -250,10 +290,10 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const j = pm.response.json();",
-                  "  pm.environment.set('s3_key', j.s3_key);",
-                  "  pm.environment.set('upload_url', j.upload_url);",
-                  "  console.log('Upload URL:', j.upload_url);",
-                  "  console.log('S3 Key:', j.s3_key);",
+                  "  pm.environment.set('s3_key', j.data.s3_key);",
+                  "  pm.environment.set('upload_url', j.data.upload_url);",
+                  "  console.log('Upload URL:', j.data.upload_url);",
+                  "  console.log('S3 Key:', j.data.s3_key);",
                   "}"
                 ]
               }
@@ -271,7 +311,7 @@
         },
         {
           "name": "2. Upload to S3 (PUT)",
-          "description": "Step 2 dari 3: Upload file langsung ke S3 menggunakan presigned URL.\nGunakan upload_url dari step sebelumnya.\nMethod: PUT, body: file binary, header Content-Type sesuai mime_type.",
+          "description": "Step 2: Upload file directly to S3 using the presigned URL.\nMethod: PUT, body: file binary, Content-Type must match the mime_type used in step 1.",
           "request": {
             "auth": { "type": "noauth" },
             "method": "PUT",
@@ -282,14 +322,14 @@
         },
         {
           "name": "3. Confirm Upload",
-          "description": "Step 3 dari 3: Daftarkan dokumen ke database setelah upload ke S3 berhasil.",
+          "description": "Step 3: Register the document in the database after successful S3 upload.",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "  pm.environment.set('document_id', pm.response.json().id);",
+                  "  pm.environment.set('document_id', pm.response.json().data.id);",
                   "}"
                 ]
               }
@@ -303,6 +343,18 @@
               "raw": "{\n  \"s3_key\": \"{{s3_key}}\",\n  \"name\": \"document.pdf\",\n  \"size\": 102400,\n  \"mime_type\": \"application/pdf\",\n  \"folder_id\": null\n}"
             },
             "url": { "raw": "{{base_url}}/api/v1/documents/confirm-upload", "host": ["{{base_url}}"], "path": ["api", "v1", "documents", "confirm-upload"] }
+          }
+        },
+        {
+          "name": "Rename Document",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"renamed-document.pdf\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/documents/{{document_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "documents", "{{document_id}}"] }
           }
         },
         {
@@ -331,11 +383,11 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "if (pm.response.code === 200) {",
+                  "if (pm.response.code === 201) {",
                   "  const j = pm.response.json();",
-                  "  pm.environment.set('share_id', j.id);",
-                  "  pm.environment.set('share_token', j.token);",
-                  "  console.log('Share URL:', j.share_url);",
+                  "  pm.environment.set('share_id', j.data.id);",
+                  "  pm.environment.set('share_token', j.data.token);",
+                  "  console.log('Share URL:', j.data.share_url);",
                   "}"
                 ]
               }
@@ -346,21 +398,51 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"expires_at\": \"2026-12-31T23:59:59Z\",\n  \"password\": null\n}"
+              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"expires_at\": \"2027-12-31T23:59:59Z\",\n  \"password\": null\n}"
             },
             "url": { "raw": "{{base_url}}/api/v1/share", "host": ["{{base_url}}"], "path": ["api", "v1", "share"] }
           }
         },
         {
           "name": "Create Share Link (with password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  pm.environment.set('share_id', j.data.id);",
+                  "  pm.environment.set('share_token', j.data.token);",
+                  "  console.log('Share URL:', j.data.share_url);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"expires_at\": \"2026-12-31T23:59:59Z\",\n  \"password\": \"rahasia123\"\n}"
+              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"expires_at\": \"2027-12-31T23:59:59Z\",\n  \"password\": \"rahasia123\"\n}"
             },
             "url": { "raw": "{{base_url}}/api/v1/share", "host": ["{{base_url}}"], "path": ["api", "v1", "share"] }
+          }
+        },
+        {
+          "name": "List My Share Links",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/share?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "share"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
           }
         },
         {
@@ -373,6 +455,19 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "share", "{{share_token}}"],
               "query": [{ "key": "password", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Access Share Link (with password)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/share/{{share_token}}?password=rahasia123",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "share", "{{share_token}}"],
+              "query": [{ "key": "password", "value": "rahasia123" }]
             }
           }
         },
@@ -407,7 +502,7 @@
     },
     {
       "name": "Admin",
-      "description": "Butuh login sebagai admin terlebih dahulu.",
+      "description": "Login as admin first to get an access_token with role=admin.",
       "item": [
         {
           "name": "List Users",

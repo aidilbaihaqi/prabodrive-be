@@ -15,6 +15,10 @@ type ConfirmUploadRequest struct {
 	FolderID *string `json:"folder_id"`
 }
 
+type RenameDocumentRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
 type ListDocumentsQuery struct {
 	FolderID *string `form:"folder_id"`
 	Search   string  `form:"search"`

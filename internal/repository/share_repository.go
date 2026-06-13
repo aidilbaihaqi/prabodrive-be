@@ -46,6 +46,36 @@ func (r *shareRepo) FindByID(ctx context.Context, id string) (*domain.ShareLink,
 	return scanShare(row)
 }
 
+func (r *shareRepo) ListByUser(ctx context.Context, userID string, page, limit int) ([]*domain.ShareLink, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM share_links WHERE created_by = $1`, userID,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("shareRepo.ListByUser count: %w", err)
+	}
+
+	offset := (page - 1) * limit
+	rows, err := r.db.Query(ctx,
+		`SELECT id, document_id, token, password_hash, expires_at, created_by, created_at
+		 FROM share_links WHERE created_by = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		userID, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("shareRepo.ListByUser: %w", err)
+	}
+	defer rows.Close()
+
+	var links []*domain.ShareLink
+	for rows.Next() {
+		s := &domain.ShareLink{}
+		if err := rows.Scan(&s.ID, &s.DocumentID, &s.Token, &s.PasswordHash, &s.ExpiresAt, &s.CreatedBy, &s.CreatedAt); err != nil {
+			return nil, 0, fmt.Errorf("shareRepo.ListByUser scan: %w", err)
+		}
+		links = append(links, s)
+	}
+	return links, total, rows.Err()
+}
+
 func (r *shareRepo) Delete(ctx context.Context, id, createdBy string) error {
 	tag, err := r.db.Exec(ctx,
 		`DELETE FROM share_links WHERE id = $1 AND created_by = $2`, id, createdBy)

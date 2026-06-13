@@ -5,24 +5,39 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/request"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/response"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/domain"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/usecase"
 )
 
 type FolderHandler struct {
-	folders domain.FolderRepository
+	folderUC usecase.FolderUsecase
 }
 
-func NewFolderHandler(folders domain.FolderRepository) *FolderHandler {
-	return &FolderHandler{folders: folders}
+func NewFolderHandler(folderUC usecase.FolderUsecase) *FolderHandler {
+	return &FolderHandler{folderUC: folderUC}
 }
 
 func (h *FolderHandler) List(c *gin.Context) {
+	var q request.ListFoldersQuery
+	_ = c.ShouldBindQuery(&q)
+
 	userID := c.GetString("user_id")
-	folders, err := h.folders.List(c.Request.Context(), userID)
+
+	// Resolve parent filter: nil = all, "" = root, uuid = children
+	var parentFilter *string
+	if q.ParentID != nil {
+		if *q.ParentID == "root" {
+			empty := ""
+			parentFilter = &empty
+		} else {
+			parentFilter = q.ParentID
+		}
+	}
+
+	folders, err := h.folderUC.List(c.Request.Context(), userID, parentFilter)
 	if err != nil {
 		response.InternalError(c, err)
 		return
@@ -32,7 +47,7 @@ func (h *FolderHandler) List(c *gin.Context) {
 
 func (h *FolderHandler) Get(c *gin.Context) {
 	userID := c.GetString("user_id")
-	folder, err := h.folders.FindByID(c.Request.Context(), c.Param("id"), userID)
+	folder, err := h.folderUC.Get(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrFolderNotFound) {
 			response.NotFound(c)
@@ -52,22 +67,13 @@ func (h *FolderHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	now := time.Now()
-	folder := &domain.Folder{
-		ID:        uuid.New().String(),
-		UserID:    userID,
-		ParentID:  req.ParentID,
-		Name:      req.Name,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	if err := h.folders.Create(c.Request.Context(), folder); err != nil {
+	folder, err := h.folderUC.Create(c.Request.Context(), userID, req.Name, req.ParentID)
+	if err != nil {
 		response.InternalError(c, err)
 		return
 	}
 
-	response.Created(c, "folder created", gin.H{"id": folder.ID})
+	response.Created(c, "folder created", toFolderResponse(folder))
 }
 
 func (h *FolderHandler) Update(c *gin.Context) {
@@ -80,7 +86,7 @@ func (h *FolderHandler) Update(c *gin.Context) {
 	userID := c.GetString("user_id")
 	folderID := c.Param("id")
 
-	if err := h.folders.Update(c.Request.Context(), folderID, userID, req.Name); err != nil {
+	if err := h.folderUC.Update(c.Request.Context(), folderID, userID, req.Name); err != nil {
 		if errors.Is(err, domain.ErrFolderNotFound) {
 			response.NotFound(c)
 			return
@@ -96,7 +102,7 @@ func (h *FolderHandler) Delete(c *gin.Context) {
 	userID := c.GetString("user_id")
 	folderID := c.Param("id")
 
-	if err := h.folders.Delete(c.Request.Context(), folderID, userID); err != nil {
+	if err := h.folderUC.Delete(c.Request.Context(), folderID, userID); err != nil {
 		if errors.Is(err, domain.ErrFolderNotFound) {
 			response.NotFound(c)
 			return

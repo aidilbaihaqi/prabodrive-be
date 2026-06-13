@@ -4,11 +4,12 @@ import (
 	"context"
 	"log"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 
 	"github.com/aidilbaihaqi/prabodrive-be/internal/config"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/handler"
@@ -17,6 +18,7 @@ import (
 	"github.com/aidilbaihaqi/prabodrive-be/internal/middleware"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/repository"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/services"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/usecase"
 )
 
 func main() {
@@ -25,7 +27,6 @@ func main() {
 	}
 
 	cfg := config.Load()
-
 	gin.SetMode(cfg.GinMode)
 
 	ctx := context.Background()
@@ -57,6 +58,7 @@ func main() {
 	sesClient := ses.NewFromConfig(awsCfg)
 	emailSvc := services.NewEmailService(sesClient, cfg.SES)
 
+	// Repositories
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewRefreshTokenRepository(db)
 	docRepo := repository.NewDocumentRepository(db)
@@ -64,19 +66,29 @@ func main() {
 	shareRepo := repository.NewShareRepository(db)
 	activityRepo := repository.NewActivityRepository(db)
 
+	// Services
 	quotaSvc := services.NewQuotaService(userRepo)
 
-	baseURL := cfg.CloudFrontDomain
+	// Base URL for share links
+	baseURL := cfg.BaseURL
 	if baseURL == "" {
 		baseURL = "http://localhost:" + cfg.Port
 	}
 
-	authH := handler.NewAuthHandler(userRepo, tokenRepo, activityRepo, cfg.JWT)
-	docH := handler.NewDocumentHandler(docRepo, userRepo, activityRepo, s3Svc, quotaSvc)
-	folderH := handler.NewFolderHandler(folderRepo)
-	shareH := handler.NewShareHandler(shareRepo, docRepo, userRepo, activityRepo, s3Svc, emailSvc, baseURL)
+	// Usecases
+	authUC := usecase.NewAuthUsecase(userRepo, tokenRepo, activityRepo, cfg.JWT)
+	docUC := usecase.NewDocumentUsecase(docRepo, userRepo, activityRepo, s3Svc, quotaSvc)
+	folderUC := usecase.NewFolderUsecase(folderRepo)
+	shareUC := usecase.NewShareUsecase(shareRepo, docRepo, userRepo, activityRepo, s3Svc, emailSvc)
+	adminUC := usecase.NewAdminUsecase(userRepo)
+
+	// Handlers
+	authH := handler.NewAuthHandler(authUC)
+	docH := handler.NewDocumentHandler(docUC)
+	folderH := handler.NewFolderHandler(folderUC)
+	shareH := handler.NewShareHandler(shareUC, baseURL)
 	activityH := handler.NewActivityHandler(activityRepo)
-	adminH := handler.NewAdminHandler(userRepo)
+	adminH := handler.NewAdminHandler(adminUC)
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())

@@ -39,10 +39,24 @@ func (r *folderRepo) FindByID(ctx context.Context, id, userID string) (*domain.F
 	return scanFolder(row)
 }
 
-func (r *folderRepo) List(ctx context.Context, userID string) ([]*domain.Folder, error) {
-	rows, err := r.db.Query(ctx,
-		`SELECT id, user_id, parent_id, name, created_at, updated_at
-		 FROM folders WHERE user_id = $1 ORDER BY name`, userID)
+func (r *folderRepo) List(ctx context.Context, userID string, parentID *string) ([]*domain.Folder, error) {
+	var query string
+	var args []any
+
+	const cols = `SELECT id, user_id, parent_id, name, created_at, updated_at FROM folders`
+	switch {
+	case parentID == nil:
+		query = cols + ` WHERE user_id = $1 ORDER BY name`
+		args = []any{userID}
+	case *parentID == "":
+		query = cols + ` WHERE user_id = $1 AND parent_id IS NULL ORDER BY name`
+		args = []any{userID}
+	default:
+		query = cols + ` WHERE user_id = $1 AND parent_id = $2 ORDER BY name`
+		args = []any{userID, *parentID}
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("folderRepo.List: %w", err)
 	}

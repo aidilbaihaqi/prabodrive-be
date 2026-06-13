@@ -37,6 +37,7 @@ func Register(
 		protected.GET("/documents/:id", docH.Get)
 		protected.POST("/documents/presign-upload", docH.PresignUpload)
 		protected.POST("/documents/confirm-upload", docH.ConfirmUpload)
+		protected.PATCH("/documents/:id", docH.Rename)
 		protected.DELETE("/documents/:id", docH.Delete)
 		protected.GET("/documents/:id/download", docH.Download)
 
@@ -46,6 +47,7 @@ func Register(
 		protected.PATCH("/folders/:id", folderH.Update)
 		protected.DELETE("/folders/:id", folderH.Delete)
 
+		protected.GET("/share", shareH.List)
 		protected.POST("/share", shareH.Create)
 		protected.DELETE("/share/:id", shareH.Delete)
 

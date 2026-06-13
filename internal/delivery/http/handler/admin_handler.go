@@ -9,14 +9,15 @@ import (
 	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/request"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/response"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/domain"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/usecase"
 )
 
 type AdminHandler struct {
-	users domain.UserRepository
+	adminUC usecase.AdminUsecase
 }
 
-func NewAdminHandler(users domain.UserRepository) *AdminHandler {
-	return &AdminHandler{users: users}
+func NewAdminHandler(adminUC usecase.AdminUsecase) *AdminHandler {
+	return &AdminHandler{adminUC: adminUC}
 }
 
 func (h *AdminHandler) ListUsers(c *gin.Context) {
@@ -27,7 +28,7 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	}
 
 	page, limit := clampPage(q.Page, q.Limit)
-	users, total, err := h.users.ListAll(c.Request.Context(), page, limit)
+	users, total, err := h.adminUC.ListUsers(c.Request.Context(), page, limit)
 	if err != nil {
 		response.InternalError(c, err)
 		return
@@ -37,7 +38,7 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 }
 
 func (h *AdminHandler) GetUser(c *gin.Context) {
-	user, err := h.users.FindByID(c.Request.Context(), c.Param("id"))
+	user, err := h.adminUC.GetUser(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
 			response.NotFound(c)
@@ -57,17 +58,17 @@ func (h *AdminHandler) UpdateRole(c *gin.Context) {
 	}
 
 	targetID := c.Param("id")
-	if targetID == c.GetString("user_id") {
-		response.Forbidden(c, "cannot change your own role")
-		return
-	}
+	requesterID := c.GetString("user_id")
 
-	if err := h.users.UpdateRole(c.Request.Context(), targetID, req.Role); err != nil {
-		if errors.Is(err, domain.ErrUserNotFound) {
+	if err := h.adminUC.UpdateRole(c.Request.Context(), targetID, requesterID, req.Role); err != nil {
+		switch {
+		case errors.Is(err, domain.ErrForbidden):
+			response.Forbidden(c, "cannot change your own role")
+		case errors.Is(err, domain.ErrUserNotFound):
 			response.NotFound(c)
-			return
+		default:
+			response.InternalError(c, err)
 		}
-		response.InternalError(c, err)
 		return
 	}
 
@@ -76,17 +77,17 @@ func (h *AdminHandler) UpdateRole(c *gin.Context) {
 
 func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	targetID := c.Param("id")
-	if targetID == c.GetString("user_id") {
-		response.Forbidden(c, "cannot delete your own account")
-		return
-	}
+	requesterID := c.GetString("user_id")
 
-	if err := h.users.DeleteUser(c.Request.Context(), targetID); err != nil {
-		if errors.Is(err, domain.ErrUserNotFound) {
+	if err := h.adminUC.DeleteUser(c.Request.Context(), targetID, requesterID); err != nil {
+		switch {
+		case errors.Is(err, domain.ErrForbidden):
+			response.Forbidden(c, "cannot delete your own account")
+		case errors.Is(err, domain.ErrUserNotFound):
 			response.NotFound(c)
-			return
+		default:
+			response.InternalError(c, err)
 		}
-		response.InternalError(c, err)
 		return
 	}
 

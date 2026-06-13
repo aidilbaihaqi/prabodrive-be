@@ -8,10 +8,10 @@ import (
 
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cfDomain := os.Getenv("CLOUDFRONT_DOMAIN")
+		frontendURL := os.Getenv("FRONTEND_URL")
 
 		origin := c.GetHeader("Origin")
-		allowed := origin == "http://localhost:3000" || (cfDomain != "" && origin == cfDomain)
+		allowed := origin == "http://localhost:3000" || (frontendURL != "" && origin == frontendURL)
 
 		if allowed {
 			c.Header("Access-Control-Allow-Origin", origin)

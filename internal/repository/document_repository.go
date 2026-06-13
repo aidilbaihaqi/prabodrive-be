@@ -95,6 +95,20 @@ func (r *docRepo) List(ctx context.Context, userID string, folderID *string, sea
 	return docs, total, rows.Err()
 }
 
+func (r *docRepo) Rename(ctx context.Context, id, userID, name string) error {
+	tag, err := r.db.Exec(ctx,
+		`UPDATE documents SET name = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
+		name, id, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("docRepo.Rename: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrDocumentNotFound
+	}
+	return nil
+}
+
 func (r *docRepo) Delete(ctx context.Context, id, userID string) (*domain.Document, error) {
 	row := r.db.QueryRow(ctx,
 		`DELETE FROM documents WHERE id = $1 AND user_id = $2

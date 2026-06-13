@@ -1,51 +1,24 @@
 package handler
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/request"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/delivery/http/response"
 	"github.com/aidilbaihaqi/prabodrive-be/internal/domain"
-	"github.com/aidilbaihaqi/prabodrive-be/internal/services"
-	"github.com/aidilbaihaqi/prabodrive-be/internal/shared/constants"
-	"github.com/aidilbaihaqi/prabodrive-be/internal/shared/utils"
+	"github.com/aidilbaihaqi/prabodrive-be/internal/usecase"
 )
 
 type ShareHandler struct {
-	shares   domain.ShareRepository
-	docs     domain.DocumentRepository
-	users    domain.UserRepository
-	activity domain.ActivityRepository
-	s3       *services.S3Service
-	email    *services.EmailService
-	baseURL  string
+	shareUC usecase.ShareUsecase
+	baseURL string
 }
 
-func NewShareHandler(
-	shares domain.ShareRepository,
-	docs domain.DocumentRepository,
-	users domain.UserRepository,
-	activity domain.ActivityRepository,
-	s3 *services.S3Service,
-	email *services.EmailService,
-	baseURL string,
-) *ShareHandler {
-	return &ShareHandler{
-		shares:   shares,
-		docs:     docs,
-		users:    users,
-		activity: activity,
-		s3:       s3,
-		email:    email,
-		baseURL:  baseURL,
-	}
+func NewShareHandler(shareUC usecase.ShareUsecase, baseURL string) *ShareHandler {
+	return &ShareHandler{shareUC: shareUC, baseURL: baseURL}
 }
 
 func (h *ShareHandler) Create(c *gin.Context) {
@@ -56,8 +29,7 @@ func (h *ShareHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-
-	doc, err := h.docs.FindByID(c.Request.Context(), req.DocumentID, userID)
+	out, err := h.shareUC.Create(c.Request.Context(), userID, req.DocumentID, req.ExpiresAt, req.Password, c.ClientIP(), h.baseURL)
 	if err != nil {
 		if errors.Is(err, domain.ErrDocumentNotFound) {
 			response.NotFound(c)
@@ -67,62 +39,31 @@ func (h *ShareHandler) Create(c *gin.Context) {
 		return
 	}
 
-	tok, err := utils.GenerateToken(32)
+	response.Created(c, "share link created", gin.H{
+		"id":         out.ID,
+		"token":      out.Token,
+		"share_url":  out.ShareURL,
+		"expires_at": out.ExpiresAt.Format(time.RFC3339),
+	})
+}
+
+func (h *ShareHandler) List(c *gin.Context) {
+	var q request.PaginationQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	userID := c.GetString("user_id")
+	page, limit := clampPage(q.Page, q.Limit)
+
+	items, total, err := h.shareUC.ListByUser(c.Request.Context(), userID, page, limit, h.baseURL)
 	if err != nil {
 		response.InternalError(c, err)
 		return
 	}
 
-	link := &domain.ShareLink{
-		ID:         uuid.New().String(),
-		DocumentID: req.DocumentID,
-		Token:      tok,
-		ExpiresAt:  req.ExpiresAt,
-		CreatedBy:  userID,
-		CreatedAt:  time.Now(),
-	}
-
-	if req.Password != nil && *req.Password != "" {
-		hash, err := bcrypt.GenerateFromPassword([]byte(*req.Password), 12)
-		if err != nil {
-			response.InternalError(c, err)
-			return
-		}
-		h := string(hash)
-		link.PasswordHash = &h
-	}
-
-	if err := h.shares.Create(c.Request.Context(), link); err != nil {
-		response.InternalError(c, err)
-		return
-	}
-
-	shareURL := fmt.Sprintf("%s/api/v1/share/%s", h.baseURL, tok)
-
-	if user, _ := h.users.FindByID(c.Request.Context(), userID); user != nil {
-		docName, ownerEmail := doc.Name, user.Email
-		go func() {
-			_ = h.email.SendShareNotification(context.Background(), ownerEmail, docName, shareURL)
-		}()
-	}
-
-	ip := c.ClientIP()
-	linkID := link.ID
-	_ = h.activity.Log(c.Request.Context(), &domain.ActivityLog{
-		ID:         uuid.New().String(),
-		UserID:     &userID,
-		Action:     constants.ActionShareCreate,
-		DocumentID: &req.DocumentID,
-		IPAddress:  &ip,
-		CreatedAt:  time.Now(),
-	})
-
-	response.Created(c, "share link created", gin.H{
-		"id":         linkID,
-		"token":      tok,
-		"share_url":  shareURL,
-		"expires_at": link.ExpiresAt.Format(time.RFC3339),
-	})
+	response.OKList(c, "share links fetched", toShareList(items), page, limit, total)
 }
 
 func (h *ShareHandler) Access(c *gin.Context) {
@@ -130,56 +71,22 @@ func (h *ShareHandler) Access(c *gin.Context) {
 	_ = c.ShouldBindQuery(&q)
 
 	tok := c.Param("token")
-	link, err := h.shares.FindByToken(c.Request.Context(), tok)
+	downloadURL, expiresAt, err := h.shareUC.Access(c.Request.Context(), tok, q.Password, c.ClientIP())
 	if err != nil {
-		if errors.Is(err, domain.ErrShareNotFound) {
+		switch {
+		case errors.Is(err, domain.ErrShareNotFound):
 			response.NotFound(c)
-			return
-		}
-		response.InternalError(c, err)
-		return
-	}
-
-	if time.Now().After(link.ExpiresAt) {
-		response.Forbidden(c, domain.ErrShareExpired.Error())
-		return
-	}
-
-	if link.PasswordHash != nil {
-		if q.Password == "" {
+		case errors.Is(err, domain.ErrShareExpired):
+			response.Forbidden(c, err.Error())
+		case errors.Is(err, domain.ErrSharePasswordWrong):
+			response.Forbidden(c, err.Error())
+		case err.Error() == "password required":
 			response.Forbidden(c, "password required")
-			return
+		default:
+			response.InternalError(c, err)
 		}
-		if err := bcrypt.CompareHashAndPassword([]byte(*link.PasswordHash), []byte(q.Password)); err != nil {
-			response.Forbidden(c, domain.ErrSharePasswordWrong.Error())
-			return
-		}
-	}
-
-	doc, err := h.docs.FindByID(c.Request.Context(), link.DocumentID, link.CreatedBy)
-	if err != nil {
-		if errors.Is(err, domain.ErrDocumentNotFound) {
-			response.NotFound(c)
-			return
-		}
-		response.InternalError(c, err)
 		return
 	}
-
-	downloadURL, expiresAt, err := h.s3.GenerateGetURL(c.Request.Context(), doc.S3Key, 15*time.Minute)
-	if err != nil {
-		response.InternalError(c, err)
-		return
-	}
-
-	ip := c.ClientIP()
-	_ = h.activity.Log(c.Request.Context(), &domain.ActivityLog{
-		ID:         uuid.New().String(),
-		Action:     constants.ActionShareAccess,
-		DocumentID: &link.DocumentID,
-		IPAddress:  &ip,
-		CreatedAt:  time.Now(),
-	})
 
 	response.OK(c, "share accessed", gin.H{
 		"download_url": downloadURL,
@@ -191,7 +98,7 @@ func (h *ShareHandler) Delete(c *gin.Context) {
 	userID := c.GetString("user_id")
 	linkID := c.Param("id")
 
-	if err := h.shares.Delete(c.Request.Context(), linkID, userID); err != nil {
+	if err := h.shareUC.Delete(c.Request.Context(), linkID, userID); err != nil {
 		if errors.Is(err, domain.ErrShareNotFound) {
 			response.NotFound(c)
 			return
@@ -201,4 +108,30 @@ func (h *ShareHandler) Delete(c *gin.Context) {
 	}
 
 	response.Deleted(c, "share link deleted", gin.H{"id": linkID})
+}
+
+type shareListResponse struct {
+	ID          string `json:"id"`
+	DocumentID  string `json:"document_id"`
+	Token       string `json:"token"`
+	ShareURL    string `json:"share_url"`
+	HasPassword bool   `json:"has_password"`
+	ExpiresAt   string `json:"expires_at"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func toShareList(items []*usecase.ShareListItem) []shareListResponse {
+	out := make([]shareListResponse, 0, len(items))
+	for _, item := range items {
+		out = append(out, shareListResponse{
+			ID:          item.ID,
+			DocumentID:  item.DocumentID,
+			Token:       item.Token,
+			ShareURL:    item.ShareURL,
+			HasPassword: item.HasPassword,
+			ExpiresAt:   item.ExpiresAt.Format(time.RFC3339),
+			CreatedAt:   item.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	return out
 }

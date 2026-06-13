@@ -18,7 +18,7 @@ type Config struct {
 	SES SESConfig
 	S3  S3Config
 
-	CloudFrontDomain string
+	BaseURL string
 }
 
 type DBConfig struct {
@@ -92,7 +92,7 @@ func Load() *Config {
 			PresignExpiry: getEnvDuration("S3_PRESIGN_EXPIRY", 15*time.Minute),
 		},
 
-		CloudFrontDomain: getEnv("CLOUDFRONT_DOMAIN", ""),
+		BaseURL: getEnv("BASE_URL", ""),
 	}
 }
 
