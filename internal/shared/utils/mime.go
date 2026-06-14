@@ -8,26 +8,39 @@ import (
 	"github.com/aidilbaihaqi/prabodrive-be/internal/domain"
 )
 
-var allowedMIMETypes = map[string]bool{
-	"application/pdf": true,
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
-	"application/msword":                                                       true,
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
-	"application/vnd.ms-excel":                                                 true,
-	"application/vnd.openxmlformats-officedocument.presentationml.presentation": true,
-	"application/vnd.ms-powerpoint": true,
-	"text/plain":                    true,
-	"image/jpeg":                    true,
-	"image/png":                     true,
-	"image/webp":                    true,
+// blockedMIMETypes contains only dangerous file types that should never be uploaded.
+// Everything else is allowed — this is a blocklist approach so that new file types
+// (video, audio, archives, etc.) work without code changes.
+var blockedMIMETypes = map[string]bool{
+	// Executables
+	"application/x-executable":    true,
+	"application/x-msdownload":    true,
+	"application/x-ms-installer":  true,
+	"application/vnd.microsoft.portable-executable": true,
+	"application/x-dosexec":       true,
+	"application/x-elf":           true,
+	"application/x-mach-binary":   true,
+	// Scripts
+	"application/x-sh":            true,
+	"application/x-bash":          true,
+	"application/x-csh":           true,
+	"application/x-perl":          true,
+	"application/x-python":        true,
+	"application/x-ruby":          true,
+	// HTML (XSS risk when served directly)
+	"text/html":                   true,
+	"application/xhtml+xml":       true,
+	// Java archives
+	"application/java-archive":    true,
+	"application/x-java-archive":  true,
 }
 
 func IsAllowedMIME(mimeType string) bool {
-	return allowedMIMETypes[mimeType]
+	return !blockedMIMETypes[mimeType]
 }
 
 func ValidateMIME(data []byte, declared string) error {
-	if !allowedMIMETypes[declared] {
+	if blockedMIMETypes[declared] {
 		return fmt.Errorf("%w: %s", domain.ErrMIMENotAllowed, declared)
 	}
 
@@ -42,11 +55,11 @@ func ValidateMIME(data []byte, declared string) error {
 		}
 	}
 
-	if !allowedMIMETypes[detectedStr] {
+	if blockedMIMETypes[detectedStr] {
 		return fmt.Errorf("%w: detected %s", domain.ErrMIMENotAllowed, detectedStr)
 	}
 	if detectedStr != declared {
-		return fmt.Errorf("%w: declared %s, detected %s", domain.ErrMIMEMismatch, declared, detectedStr)
+		return fmt.Errorf("%w: declared %s, detected %s", domain.ErrMIMEMismatch, detectedStr)
 	}
 	return nil
 }

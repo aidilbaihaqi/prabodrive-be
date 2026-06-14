@@ -95,10 +95,10 @@ func (r *docRepo) List(ctx context.Context, userID string, folderID *string, sea
 	return docs, total, rows.Err()
 }
 
-func (r *docRepo) Rename(ctx context.Context, id, userID, name string) error {
+func (r *docRepo) Rename(ctx context.Context, id, userID, name, s3Key string) error {
 	tag, err := r.db.Exec(ctx,
-		`UPDATE documents SET name = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
-		name, id, userID,
+		`UPDATE documents SET name = $1, s3_key = $2, updated_at = NOW() WHERE id = $3 AND user_id = $4`,
+		name, s3Key, id, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("docRepo.Rename: %w", err)

@@ -52,12 +52,13 @@ CREATE TABLE share_links (
 );
 
 CREATE TABLE activity_logs (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
-    action      VARCHAR(50) NOT NULL,
-    document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
-    ip_address  INET,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+    action        VARCHAR(50) NOT NULL,
+    document_id   UUID REFERENCES documents(id) ON DELETE SET NULL,
+    document_name VARCHAR(255),
+    ip_address    INET,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_documents_user_id   ON documents(user_id);

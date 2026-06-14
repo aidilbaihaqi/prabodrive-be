@@ -165,6 +165,25 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	})
 }
 
+func (h *AuthHandler) GetMe(c *gin.Context) {
+	userID := c.GetString("user_id")
+	user, err := h.auth.GetMe(c.Request.Context(), userID)
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+	response.OK(c, "user profile", gin.H{
+		"id":         user.ID,
+		"name":       user.Name,
+		"email":      user.Email,
+		"role":       user.Role,
+		"quota_used": user.QuotaUsed,
+		"quota_max":  user.QuotaMax,
+		"created_at": user.CreatedAt,
+		"updated_at": user.UpdatedAt,
+	})
+}
+
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req request.LogoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

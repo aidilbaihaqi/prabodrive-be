@@ -31,6 +31,7 @@ type AuthUsecase interface {
 	Login(ctx context.Context, email, password, ip string) (*AuthOutput, error)
 	Refresh(ctx context.Context, refreshToken string) (*TokenPair, error)
 	Logout(ctx context.Context, userID, refreshToken, ip string) error
+	GetMe(ctx context.Context, userID string) (*domain.User, error)
 	GetProfile(ctx context.Context, userID string) (*domain.User, error)
 	UpdateProfile(ctx context.Context, userID, name string) (*domain.User, error)
 	ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error
@@ -160,6 +161,10 @@ func (u *authUsecase) Logout(ctx context.Context, userID, refreshToken, ip strin
 		CreatedAt: time.Now(),
 	})
 	return nil
+}
+
+func (u *authUsecase) GetMe(ctx context.Context, userID string) (*domain.User, error) {
+	return u.users.FindByID(ctx, userID)
 }
 
 func (u *authUsecase) GetProfile(ctx context.Context, userID string) (*domain.User, error) {

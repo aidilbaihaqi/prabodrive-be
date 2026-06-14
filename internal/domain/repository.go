@@ -29,7 +29,7 @@ type DocumentRepository interface {
 	Create(ctx context.Context, doc *Document) error
 	FindByID(ctx context.Context, id, userID string) (*Document, error)
 	List(ctx context.Context, userID string, folderID *string, search string, page, limit int) ([]*Document, int, error)
-	Rename(ctx context.Context, id, userID, name string) error
+	Rename(ctx context.Context, id, userID, name, s3Key string) error
 	Delete(ctx context.Context, id, userID string) (*Document, error)
 }
 
