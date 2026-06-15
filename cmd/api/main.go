@@ -78,7 +78,7 @@ func main() {
 	// Usecases
 	authUC := usecase.NewAuthUsecase(userRepo, tokenRepo, activityRepo, cfg.JWT)
 	docUC := usecase.NewDocumentUsecase(docRepo, userRepo, activityRepo, s3Svc, quotaSvc)
-	folderUC := usecase.NewFolderUsecase(folderRepo)
+	folderUC := usecase.NewFolderUsecase(folderRepo, activityRepo)
 	shareUC := usecase.NewShareUsecase(shareRepo, docRepo, userRepo, activityRepo, s3Svc, emailSvc)
 	adminUC := usecase.NewAdminUsecase(userRepo)
 

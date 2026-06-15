@@ -111,42 +111,86 @@ func (u *documentUsecase) ConfirmUpload(ctx context.Context, userID, s3Key, name
 	}
 
 	_ = u.activity.Log(ctx, &domain.ActivityLog{
-		ID:         uuid.New().String(),
-		UserID:     &userID,
-		Action:     constants.ActionUpload,
-		DocumentID: &docID,
-		IPAddress:  &ip,
-		CreatedAt:  now,
+		ID:           uuid.New().String(),
+		UserID:       &userID,
+		Action:       constants.ActionUpload,
+		DocumentID:   &docID,
+		DocumentName: &name,
+		IPAddress:    &ip,
+		CreatedAt:    now,
 	})
 
 	return docID, nil
 }
 
 func (u *documentUsecase) Rename(ctx context.Context, id, userID, name string) error {
-	return u.docs.Rename(ctx, id, userID, name)
+	doc, err := u.docs.FindByID(ctx, id, userID)
+	if err != nil {
+		return err
+	}
+
+	// Rename S3 object: copy to new key, delete old key
+	oldKey := doc.S3Key
+	folderStr := ""
+	if doc.FolderID != nil {
+		folderStr = *doc.FolderID
+	}
+	newKey := services.S3Key(userID, folderStr, id, utils.SanitizeFilename(name))
+
+	if oldKey != newKey {
+		if err := u.s3.CopyObject(ctx, oldKey, newKey); err != nil {
+			return err
+		}
+		if err := u.s3.DeleteObject(ctx, oldKey); err != nil {
+			return err
+		}
+	}
+
+	if err := u.docs.Rename(ctx, id, userID, name, newKey); err != nil {
+		return err
+	}
+
+	_ = u.activity.Log(ctx, &domain.ActivityLog{
+		ID:           uuid.New().String(),
+		UserID:       &userID,
+		Action:       constants.ActionRename,
+		DocumentID:   &id,
+		DocumentName: &name,
+		CreatedAt:    time.Now(),
+	})
+
+	return nil
 }
 
 func (u *documentUsecase) Delete(ctx context.Context, id, userID, ip string) (string, error) {
-	doc, err := u.docs.Delete(ctx, id, userID)
+	doc, err := u.docs.FindByID(ctx, id, userID)
 	if err != nil {
 		return "", err
 	}
 
+	// Log activity BEFORE actual delete so it's always recorded
+	docName := doc.Name
+	_ = u.activity.Log(ctx, &domain.ActivityLog{
+		ID:           uuid.New().String(),
+		UserID:       &userID,
+		Action:       constants.ActionDelete,
+		DocumentID:   &id,
+		DocumentName: &docName,
+		IPAddress:    &ip,
+		CreatedAt:    time.Now(),
+	})
+
 	if err := u.s3.DeleteObject(ctx, doc.S3Key); err != nil {
 		return "", fmt.Errorf("s3 delete: %w", err)
 	}
-	if err := u.users.AddQuota(ctx, userID, -doc.Size); err != nil {
+
+	if _, err := u.docs.Delete(ctx, id, userID); err != nil {
 		return "", err
 	}
 
-	_ = u.activity.Log(ctx, &domain.ActivityLog{
-		ID:         uuid.New().String(),
-		UserID:     &userID,
-		Action:     constants.ActionDelete,
-		DocumentID: &id,
-		IPAddress:  &ip,
-		CreatedAt:  time.Now(),
-	})
+	if err := u.users.AddQuota(ctx, userID, -doc.Size); err != nil {
+		return "", err
+	}
 
 	return doc.ID, nil
 }
@@ -163,13 +207,15 @@ func (u *documentUsecase) Download(ctx context.Context, id, userID, ip string) (
 	}
 
 	docID := doc.ID
+	docName := doc.Name
 	_ = u.activity.Log(ctx, &domain.ActivityLog{
-		ID:         uuid.New().String(),
-		UserID:     &userID,
-		Action:     constants.ActionDownload,
-		DocumentID: &docID,
-		IPAddress:  &ip,
-		CreatedAt:  time.Now(),
+		ID:           uuid.New().String(),
+		UserID:       &userID,
+		Action:       constants.ActionDownload,
+		DocumentID:   &docID,
+		DocumentName: &docName,
+		IPAddress:    &ip,
+		CreatedAt:    time.Now(),
 	})
 
 	return url, expiresAt, nil

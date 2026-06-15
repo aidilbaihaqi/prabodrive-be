@@ -71,6 +71,18 @@ func (s *S3Service) GenerateGetURL(ctx context.Context, s3Key string, expiry tim
 	return req.URL, expiresAt, nil
 }
 
+func (s *S3Service) CopyObject(ctx context.Context, srcKey, dstKey string) error {
+	_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(s.bucket),
+		CopySource: aws.String(fmt.Sprintf("%s/%s", s.bucket, srcKey)),
+		Key:        aws.String(dstKey),
+	})
+	if err != nil {
+		return fmt.Errorf("s3: copy object: %w", err)
+	}
+	return nil
+}
+
 func (s *S3Service) DeleteObject(ctx context.Context, s3Key string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),

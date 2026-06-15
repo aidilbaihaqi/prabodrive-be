@@ -19,9 +19,9 @@ func NewActivityRepository(db *pgxpool.Pool) domain.ActivityRepository {
 
 func (r *activityRepo) Log(ctx context.Context, entry *domain.ActivityLog) error {
 	_, err := r.db.Exec(ctx,
-		`INSERT INTO activity_logs (id, user_id, action, document_id, ip_address, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		entry.ID, entry.UserID, entry.Action, entry.DocumentID, entry.IPAddress, entry.CreatedAt,
+		`INSERT INTO activity_logs (id, user_id, action, document_id, document_name, ip_address, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		entry.ID, entry.UserID, entry.Action, entry.DocumentID, entry.DocumentName, entry.IPAddress, entry.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("activityRepo.Log: %w", err)
@@ -39,7 +39,7 @@ func (r *activityRepo) List(ctx context.Context, userID string, page, limit int)
 
 	offset := (page - 1) * limit
 	rows, err := r.db.Query(ctx,
-		`SELECT id, user_id, action, document_id, ip_address::text, created_at
+		`SELECT id, user_id, action, document_id, document_name, ip_address::text, created_at
 		 FROM activity_logs WHERE user_id = $1
 		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		userID, limit, offset)
@@ -51,7 +51,7 @@ func (r *activityRepo) List(ctx context.Context, userID string, page, limit int)
 	var logs []*domain.ActivityLog
 	for rows.Next() {
 		l := &domain.ActivityLog{}
-		if err := rows.Scan(&l.ID, &l.UserID, &l.Action, &l.DocumentID, &l.IPAddress, &l.CreatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.UserID, &l.Action, &l.DocumentID, &l.DocumentName, &l.IPAddress, &l.CreatedAt); err != nil {
 			return nil, 0, fmt.Errorf("activityRepo.List scan: %w", err)
 		}
 		logs = append(logs, l)

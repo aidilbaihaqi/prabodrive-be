@@ -38,22 +38,24 @@ func (h *ActivityHandler) List(c *gin.Context) {
 }
 
 type activityResponse struct {
-	ID         string  `json:"id"`
-	Action     string  `json:"action"`
-	DocumentID *string `json:"document_id"`
-	IPAddress  *string `json:"ip_address"`
-	CreatedAt  string  `json:"created_at"`
+	ID           string  `json:"id"`
+	Action       string  `json:"action"`
+	DocumentID   *string `json:"document_id"`
+	DocumentName *string `json:"document_name"`
+	IPAddress    *string `json:"ip_address"`
+	CreatedAt    string  `json:"created_at"`
 }
 
 func toLogList(logs []*domain.ActivityLog) []activityResponse {
 	out := make([]activityResponse, 0, len(logs))
 	for _, l := range logs {
 		out = append(out, activityResponse{
-			ID:         l.ID,
-			Action:     l.Action,
-			DocumentID: l.DocumentID,
-			IPAddress:  l.IPAddress,
-			CreatedAt:  l.CreatedAt.Format(time.RFC3339),
+			ID:           l.ID,
+			Action:       l.Action,
+			DocumentID:   l.DocumentID,
+			DocumentName: l.DocumentName,
+			IPAddress:    l.IPAddress,
+			CreatedAt:    l.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	return out

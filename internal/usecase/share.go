@@ -179,17 +179,36 @@ func (u *shareUsecase) Access(ctx context.Context, token, password, ip string) (
 		return "", time.Time{}, err
 	}
 
+	docName := doc.Name
 	_ = u.activity.Log(ctx, &domain.ActivityLog{
-		ID:         uuid.New().String(),
-		Action:     constants.ActionShareAccess,
-		DocumentID: &link.DocumentID,
-		IPAddress:  &ip,
-		CreatedAt:  time.Now(),
+		ID:           uuid.New().String(),
+		Action:       constants.ActionShareAccess,
+		DocumentID:   &link.DocumentID,
+		DocumentName: &docName,
+		IPAddress:    &ip,
+		CreatedAt:    time.Now(),
 	})
 
 	return downloadURL, expiresAt, nil
 }
 
 func (u *shareUsecase) Delete(ctx context.Context, id, userID string) error {
-	return u.shares.Delete(ctx, id, userID)
+	share, err := u.shares.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := u.shares.Delete(ctx, id, userID); err != nil {
+		return err
+	}
+
+	_ = u.activity.Log(ctx, &domain.ActivityLog{
+		ID:         uuid.New().String(),
+		UserID:     &userID,
+		Action:     constants.ActionShareDelete,
+		DocumentID: &share.DocumentID,
+		CreatedAt:  time.Now(),
+	})
+
+	return nil
 }

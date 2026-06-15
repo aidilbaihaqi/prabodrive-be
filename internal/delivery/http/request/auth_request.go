@@ -18,3 +18,9 @@ type RefreshRequest struct {
 type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
+
+type UpdateProfileRequest struct {
+	Name            string `json:"name"`
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password" binding:"omitempty,min=8"`
+}

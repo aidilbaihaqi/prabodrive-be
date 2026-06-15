@@ -9,6 +9,9 @@ type UserRepository interface {
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	AddQuota(ctx context.Context, userID string, delta int64) error
 
+	UpdateProfile(ctx context.Context, id, name string) error
+	UpdatePassword(ctx context.Context, id, passwordHash string) error
+
 	// Admin operations
 	ListAll(ctx context.Context, page, limit int) ([]*User, int, error)
 	UpdateRole(ctx context.Context, id, role string) error
@@ -26,7 +29,7 @@ type DocumentRepository interface {
 	Create(ctx context.Context, doc *Document) error
 	FindByID(ctx context.Context, id, userID string) (*Document, error)
 	List(ctx context.Context, userID string, folderID *string, search string, page, limit int) ([]*Document, int, error)
-	Rename(ctx context.Context, id, userID, name string) error
+	Rename(ctx context.Context, id, userID, name, s3Key string) error
 	Delete(ctx context.Context, id, userID string) (*Document, error)
 }
 
