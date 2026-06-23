@@ -32,15 +32,15 @@ func (r *activityRepo) Log(ctx context.Context, entry *domain.ActivityLog) error
 func (r *activityRepo) List(ctx context.Context, userID string, page, limit int) ([]*domain.ActivityLog, int, error) {
 	var total int
 	err := r.db.QueryRow(ctx,
-		`SELECT COUNT(*) FROM activity_logs WHERE user_id = $1`, userID).Scan(&total)
+		`SELECT COUNT(*) FROM activity_logs WHERE user_id = $1::uuid`, userID).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("activityRepo.List count: %w", err)
 	}
 
 	offset := (page - 1) * limit
 	rows, err := r.db.Query(ctx,
-		`SELECT id, user_id, action, document_id, document_name, ip_address::text, created_at
-		 FROM activity_logs WHERE user_id = $1
+		`SELECT id::text, user_id::text, action, document_id::text, document_name, ip_address::text, created_at
+		 FROM activity_logs WHERE user_id = $1::uuid
 		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		userID, limit, offset)
 	if err != nil {

@@ -88,10 +88,8 @@ func (h *ShareHandler) Access(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "share accessed", gin.H{
-		"download_url": downloadURL,
-		"expires_at":   expiresAt.Format(time.RFC3339),
-	})
+	c.Redirect(302, downloadURL)
+	_ = expiresAt
 }
 
 func (h *ShareHandler) Delete(c *gin.Context) {
